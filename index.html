@@ -79,6 +79,25 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
 .admin{background:none;border:none;box-shadow:none;color:var(--muted);font-size:13px;padding:4px 0;margin-top:30px;text-decoration:underline;font-weight:400}
 .cx{display:flex;justify-content:flex-end;margin-top:16px}
 .cx button{background:var(--card);color:var(--ink)}
+
+.views{display:flex;gap:8px;margin:0 0 20px}
+.views button{flex:1;background:var(--card);color:var(--ink);box-shadow:none}
+.views button[aria-selected="true"]{background:var(--yellow);color:#23155c;box-shadow:3px 3px 0 var(--line)}
+.gp{background:var(--card);border:2.5px solid var(--line);border-radius:22px;padding:18px;margin-bottom:22px;box-shadow:5px 5px 0 var(--line)}
+.gp h2{font-family:"Lalezar",sans-serif;font-weight:400;font-size:30px;margin:0 0 10px}
+.rbox{text-align:center}
+.rbox .av{width:120px;height:120px;font-size:56px;margin:0 auto 8px}
+.rname{font-weight:700;font-size:22px;min-height:1.4em}
+.letter{font-family:"Lalezar",sans-serif;font-size:96px;line-height:1.1;text-align:center;color:var(--pink)}
+.timer{text-align:center;font-weight:700;font-size:20px;min-height:1.6em}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fgrid label{font-weight:700;font-size:14px}
+.fgrid input,.pname{display:block;width:100%;margin-top:3px}
+.res{margin-top:14px;overflow-x:auto}
+.res table{border-collapse:collapse;width:100%;min-width:430px}
+.res th,.res td{border:2px solid var(--line);padding:6px 8px;text-align:center}
+.res .win td{background:var(--mint);color:#23155c;font-weight:700}
+.res s{opacity:.5}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -86,12 +105,33 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
 <main>
   <h1 id="title" spellcheck="false" aria-label="اسم القروب">شلّتنا 💜</h1>
   <p class="sub"><span id="subtxt">جاري التحميل…</span> <span class="count" id="count"></span></p>
+  <nav class="views"><button type="button" id="tabM" aria-selected="true">الأعضاء</button><button type="button" id="tabG" aria-selected="false">الألعاب 🎮</button></nav>
+  <div id="vMembers">
   <div class="tools">
     <input id="search" type="search" placeholder="دوّر على عضو…" aria-label="بحث">
     <button id="add" type="button" hidden>أضف نفسك</button>
     <button id="addOther" type="button" class="alt2" hidden>أضف عضو</button>
   </div>
   <section class="grid" id="grid" aria-live="polite"></section>
+  </div>
+  <div id="vGames" hidden>
+    <section class="gp rbox"><h2>🎡 الروليت</h2>
+      <div class="av" id="rAv" style="transition:transform .3s">؟</div>
+      <div class="rname" id="rName">مين الحظ اليوم؟</div>
+      <p class="hint" id="rSub"></p>
+      <button id="spin" type="button">لف الروليت</button>
+    </section>
+    <section class="gp"><h2>🔤 جماد حيوان نبات إنسان</h2>
+      <div class="letter" id="lLetter">؟</div>
+      <div class="timer" id="lTimer"></div>
+      <p class="hint" id="lState" style="text-align:center"></p>
+      <label>اسمك<input class="pname" id="pname" maxlength="30" autocomplete="off"></label>
+      <div class="fgrid" id="fg" style="margin-top:10px"></div>
+      <div class="acts" style="margin-top:12px"><button id="lSubmit" type="button" hidden>أرسل إجاباتي</button><button id="lStart" type="button" class="alt2">ابدأ جولة جديدة</button></div>
+      <p class="hint" id="lMsg" style="text-align:center"></p>
+      <div class="res" id="lRes"></div>
+    </section>
+  </div>
 </main>
 
 <dialog id="adlg">
@@ -377,6 +417,106 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
     if(isAdmin&&t) rpc("admin_set_title",{p_pass:adminPass,p_t:t}).catch(function(){});
   });
   title.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();title.blur();}});
+
+  /* ---- tabs + games ---- */
+  var rd=null,pollT=null,tickT=null,sent=false,shown=null,fetching=false;
+  var CATS=["جماد","حيوان","نبات","إنسان"], inps=[], pn=$("pname");
+  try{pn.value=localStorage.getItem("igPlayer")||"";}catch(e){}
+  CATS.forEach(function(c){
+    var l=el("label",null,c), i=document.createElement("input"); i.maxLength=20; i.autocomplete="off";
+    i.oninput=function(){sent=false;}; l.appendChild(i); $("fg").appendChild(l); inps.push(i);
+  });
+  function setInputs(on){inps.forEach(function(i){i.disabled=!on;});}
+  function norm(s){s=(s||"").trim(); [["أ","ا"],["إ","ا"],["آ","ا"],["ى","ي"],["ة","ه"]].forEach(function(p){s=s.split(p[0]).join(p[1]);}); return s;}
+
+  function showView(v){
+    $("vMembers").hidden=v!=="m"; $("vGames").hidden=v!=="g";
+    $("tabM").setAttribute("aria-selected",v==="m"?"true":"false");
+    $("tabG").setAttribute("aria-selected",v==="g"?"true":"false");
+    if(v==="g"){ pollRound(); if(!pollT) pollT=setInterval(pollRound,3000); if(!tickT) tickT=setInterval(updateGame,500); }
+    else { clearInterval(pollT); clearInterval(tickT); pollT=tickT=null; }
+  }
+  $("tabM").onclick=function(){showView("m");};
+  $("tabG").onclick=function(){showView("g");};
+
+  /* roulette */
+  function showR(m){ fillAv($("rAv"),m); $("rName").textContent=m.n+(m.mood?" "+m.mood:""); $("rSub").textContent="@"+m.h+(m.r?" • "+m.r:""); }
+  $("spin").onclick=function(){
+    if(!docs.length){ $("rSub").textContent="ما فيه أعضاء للحين."; return; }
+    var b=$("spin"); b.disabled=true; var n=0,total=20+Math.floor(Math.random()*8),delay=70;
+    (function step(){
+      showR(docs[Math.floor(Math.random()*docs.length)]); n++;
+      if(n<total){ if(n>12) delay+=30; setTimeout(step,delay); }
+      else { b.disabled=false; $("rAv").style.transform="scale(1.12)"; setTimeout(function(){$("rAv").style.transform="";},400); }
+    })();
+  };
+
+  /* letters game */
+  function pollRound(){
+    if(!loaded||failed) return;
+    api("game_rounds?select=id,letter,ends_at&order=created_at.desc&limit=1").then(function(r){
+      var x=r&&r[0]; if(!x) return;
+      if(!rd||rd.id!==x.id){
+        rd=x; sent=false; shown=null; fetching=false;
+        inps.forEach(function(i){i.value="";}); $("lRes").textContent=""; $("lMsg").textContent="";
+      }
+      updateGame();
+    }).catch(function(){});
+  }
+  function updateGame(){
+    if(!pn.value){ var mine=docs.find(function(m){return tokens[m.id];}); if(mine) pn.value=mine.n; }
+    if(!rd){ $("lLetter").textContent="؟"; $("lTimer").textContent=""; $("lState").textContent="ما فيه جولة شغالة. ابدأ وحدة! 🎲"; setInputs(false); return; }
+    var left=Math.ceil((new Date(rd.ends_at).getTime()-Date.now())/1000);
+    $("lLetter").textContent=rd.letter;
+    if(left>0){
+      $("lState").textContent="اكتب كلمة تبدأ بهالحرف في كل خانة"; $("lTimer").textContent="⏰ "+left;
+      setInputs(true); $("lStart").hidden=true; $("lSubmit").hidden=false; return;
+    }
+    $("lTimer").textContent="انتهى الوقت"; $("lState").textContent=""; setInputs(false);
+    $("lSubmit").hidden=true; $("lStart").hidden=false;
+    if(!sent && left>-3 && pn.value.trim() && inps.some(function(i){return i.value.trim();})) submit(true);
+    if(left<=-4 && shown!==rd.id && !fetching) loadResults();
+  }
+  function submit(auto){
+    var name=pn.value.trim();
+    if(!name){ $("lMsg").textContent="اكتب اسمك أول."; return; }
+    try{localStorage.setItem("igPlayer",name);}catch(e){}
+    sent=true;
+    rpc("submit_answers",{p_round:rd.id,p_player:name,p_a:inps.map(function(i){return i.value.trim().slice(0,20);})})
+      .then(function(){ $("lMsg").textContent=auto?"انرسلت إجاباتك ✓":"انحفظت ✓ (تقدر تعدّلها قبل ما يخلص الوقت)"; })
+      .catch(function(){ sent=false; $("lMsg").textContent="ما انرسلت، جرّب مرة ثانية."; });
+  }
+  $("lSubmit").onclick=function(){submit(false);};
+  $("lStart").onclick=function(){
+    $("lMsg").textContent="";
+    rpc("start_round",{}).then(pollRound).catch(function(){ $("lMsg").textContent="فيه جولة شغالة الحين."; pollRound(); });
+  };
+  function loadResults(){
+    fetching=true; var id=rd.id, letter=rd.letter;
+    api("game_answers?select=player,a&round_id=eq."+id).then(function(rows){ shown=id; fetching=false; renderRes(rows,letter); })
+      .catch(function(){ fetching=false; });
+  }
+  function renderRes(rows,letter){
+    var box=$("lRes"); box.textContent="";
+    if(!rows.length){ box.appendChild(el("p","hint","ما أحد شارك بهالجولة 😅")); return; }
+    var L=norm(letter);
+    var v=rows.map(function(r){return r.a.map(function(x){var n=norm(x); return (n.indexOf(L)===0&&n.length>=2)?n:null;});});
+    var sc=rows.map(function(){return 0;});
+    for(var c=0;c<4;c++){
+      var cnt={}; v.forEach(function(a){ if(a[c]) cnt[a[c]]=(cnt[a[c]]||0)+1; });
+      v.forEach(function(a,k){ if(a[c]) sc[k]+=cnt[a[c]]===1?10:5; });
+    }
+    var order=rows.map(function(_,k){return k;}).sort(function(a,b){return sc[b]-sc[a];});
+    var t=el("table"), hr=el("tr");
+    ["اللاعب"].concat(CATS,["النقاط"]).forEach(function(h){hr.appendChild(el("th",null,h));}); t.appendChild(hr);
+    order.forEach(function(k,pos){
+      var tr=el("tr",pos===0&&sc[k]>0?"win":null); tr.appendChild(el("td",null,rows[k].player));
+      rows[k].a.forEach(function(x,c){ var td=el("td"); if(!x) td.textContent="—"; else if(v[k][c]) td.textContent=x; else { var s2=document.createElement("s"); s2.textContent=x; td.appendChild(s2); } tr.appendChild(td); });
+      tr.appendChild(el("td",null,sc[k])); t.appendChild(tr);
+    });
+    box.appendChild(t);
+    box.appendChild(el("p","hint","الإجابة الفريدة 10 نقاط، المكررة 5، الغلط (المشطوب) 0."));
+  }
 
   q.addEventListener("input",render);
   render();
