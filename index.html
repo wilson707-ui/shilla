@@ -118,7 +118,8 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
   <section class="grid" id="grid" aria-live="polite"></section>
   </div>
   <div id="vGames" hidden>
-    <p class="hint" id="whoG" style="text-align:center;margin:0 0 14px"></p>
+    <p class="hint" id="whoG" style="text-align:center;margin:0 0 8px"></p>
+    <div id="guestBox" hidden style="text-align:center;margin:0 0 14px"><input id="gName" maxlength="20" placeholder="اكتب اسمك عشان تلعب" autocomplete="off" style="width:100%;max-width:320px"></div>
     <section class="gp rbox"><h2>🎡 روليت الإقصاء</h2>
       <p class="hint" id="rStatus"></p>
       <canvas id="rCv" width="340" height="340" style="width:100%;max-width:340px;display:block;margin:0 auto"></canvas>
@@ -441,18 +442,20 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
     return docs.find(function(m){return tokens[m.id];})||docs.find(function(m){return m.id===claimed;})||null;
   }
   function myName(){
-    var m=myMember(); if(!m) return "";
+    var m=myMember(); if(!m) return $("gName").value.trim().slice(0,20);
     var dup=docs.some(function(x){return x.id!==m.id&&x.n===m.n;});
     return dup?(m.n.slice(0,12)+" @"+m.h).slice(0,20):m.n;
   }
+  var gEl=$("gName"); try{gEl.value=localStorage.getItem("igGuest")||"";}catch(e){}
+  gEl.oninput=function(){try{localStorage.setItem("igGuest",gEl.value.trim());}catch(e){}};
   function setWho(){
-    var n=myName();
-    $("whoG").textContent=n?("تلعب باسم: "+n):"ما عندك بطاقة. سوّ بطاقتك من تبويب «الأعضاء» وبعدها العب 👇";
+    var has=!!myMember(), n=myName();
+    $("guestBox").hidden=has;
+    $("whoG").textContent=has?("تلعب باسم: "+n):(n?("تلعب باسم: "+n):"اكتب اسمك تحت وبعدها العب 👇");
   }
   function needCard(id){
-    $(id).textContent="لازم نعرف مين أنت أول 👇";
-    showView("m");
-    subtxt.textContent="اضغط على بطاقتك واختر «هذا أنا 🙋»، أو اضغط «أضف نفسك» لو ما عندك بطاقة. ";
+    $(id).textContent="اكتب اسمك فوق أول 👆";
+    gEl.focus();
   }
 
   /* ---- tabs + games ---- */
