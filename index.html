@@ -200,7 +200,7 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
     else box.textContent=Array.from(m.n)[0]||"؟";
   }
   function url(m){return "https://www.instagram.com/"+encodeURIComponent(m.h)+"/";}
-  function hasMine(){return docs.some(function(m){return tokens[m.id];});}
+  function hasMine(){return !!myMember();}
   function canEditM(m){return isAdmin || !!tokens[m.id];}
 
   /* ---- Supabase (REST) ---- */
@@ -311,6 +311,15 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
       }
     };
     a.appendChild(gb); a.appendChild(cp); panel.appendChild(a);
+    var me0=myMember();
+    if(!me0||me0.id!==cur.id){
+      var me=el("button","alt2","هذا أنا 🙋"); me.type="button"; me.style.marginTop="12px";
+      me.onclick=function(){
+        claimed=cur.id; try{localStorage.setItem("igMe",cur.id);}catch(e){}
+        me.textContent="تمام، تلعب باسم "+cur.n+" ✓"; me.disabled=true; render();
+      };
+      var mw=el("div","acts"); mw.appendChild(me); panel.appendChild(mw);
+    }
     if(canEditM(cur)){
       var ed=el("button","alt","عدّل البيانات"); ed.type="button";
       ed.onclick=function(){mdlg.close(); openForm(cur,"edit");};
@@ -427,7 +436,10 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
   title.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();title.blur();}});
 
   /* ---- identity from my card ---- */
-  function myMember(){return docs.find(function(m){return tokens[m.id];})||null;}
+  var claimed=""; try{claimed=localStorage.getItem("igMe")||"";}catch(e){}
+  function myMember(){
+    return docs.find(function(m){return tokens[m.id];})||docs.find(function(m){return m.id===claimed;})||null;
+  }
   function myName(){
     var m=myMember(); if(!m) return "";
     var dup=docs.some(function(x){return x.id!==m.id&&x.n===m.n;});
@@ -438,8 +450,9 @@ textarea{font:inherit;color:var(--ink);background:var(--card);border:2.5px solid
     $("whoG").textContent=n?("تلعب باسم: "+n):"ما عندك بطاقة. سوّ بطاقتك من تبويب «الأعضاء» وبعدها العب 👇";
   }
   function needCard(id){
-    $(id).textContent="لازم تسوي بطاقتك أول 👇";
-    showView("m"); if(!hasMine()) openForm(null,"self");
+    $(id).textContent="لازم نعرف مين أنت أول 👇";
+    showView("m");
+    subtxt.textContent="اضغط على بطاقتك واختر «هذا أنا 🙋»، أو اضغط «أضف نفسك» لو ما عندك بطاقة. ";
   }
 
   /* ---- tabs + games ---- */
